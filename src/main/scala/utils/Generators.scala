@@ -57,7 +57,7 @@ object Generators extends Data {
   def getRandomAddress: String  = addressList(between(0, addressList.size))
 
   def getRandomOrders: LazyList[Order] = {
-    val streamSize = 1
+    val streamSize = 1000
 
     @tailrec
     def constructList(size: Int, stream: LazyList[Order]): LazyList[Order] = {
