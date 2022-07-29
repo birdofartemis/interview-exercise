@@ -1,6 +1,6 @@
 package resources
 import models.{Item, Product}
-import utils.Generators.getRandomDate
+import utils.DateHelpers.getRandomDate
 
 trait Data {
   val namesList = List(
