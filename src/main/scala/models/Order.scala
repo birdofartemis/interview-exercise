@@ -1,6 +1,6 @@
 package models
-
-import utils.DateHelpers.{isBetween, subtractDates}
+import models.Product.getProductAgeWhenSold
+import utils.DateHelpers.{isBetween, isPartOfGroup}
 
 import java.time.LocalDateTime
 import scala.annotation.tailrec
@@ -10,48 +10,45 @@ final case class Order(
   shippingAddress: String,
   totalPrice: Double,
   orderDate: LocalDateTime,
-  items: List[Item],
+  items: LazyList[Item],
   contact: String
 )
-
 object Order {
   def customerContact(name: String): String = name ++ "@gmail.com"
-  val totalPrice: List[Item] => Double      = items => items.map(_.price).sum
 
-  def getOrderInterval(
-    startDate: LocalDateTime,
-    endDate: LocalDateTime,
-    orders: LazyList[Order]
-  ): LazyList[Order] = {
-    orders.filter(order => isBetween(startDate, endDate, order.orderDate))
+  val totalPrice: LazyList[Item] => Double = items => items.map(_.cost).sum
+
+  def printOrdersByGroups(orderList: LazyList[Order]): Unit = {
+    println(s"1-3 months -> ${ordersByGroup(orderList, (1, 3), false)}")
+    println(s"4-6 months -> ${ordersByGroup(orderList, (4, 6), false)}")
+    println(s"7-12 months -> ${ordersByGroup(orderList, (7, 12), false)}")
+    println(s">12 months -> ${ordersByGroup(orderList, (0, 0), true)}")
   }
-
-  def getProductAgeWhenSold(orderDate: LocalDateTime, items: List[Item]): List[LocalDateTime] = {
-    val listProductsAge = for {
-      item <- items
-      product    = item.product
-      productAge = product.creationDate
-    } yield productAge
-
-    listProductsAge.map(productAge => subtractDates(orderDate, productAge))
-  }
-
-  def ordersByGroup(orderList: LazyList[Order], group: (Int, Int)): Int = {
+  def ordersByGroup(orderList: LazyList[Order], group: (Int, Int), hasYears: Boolean): Int = {
     @tailrec
     def helper(
-      currentItem: LocalDateTime,
-      nextItem: List[LocalDateTime],
-      validator: Boolean,
+      currentItemAge: LocalDateTime,
+      nextItemAge: LazyList[LocalDateTime],
+      isValid: Boolean,
+      hasYears: Boolean,
       accumulator: Int
     ): Int = {
-      if (nextItem.isEmpty || !validator) accumulator
-      else if (
-        validator && currentItem.getMonthValue >= group._1 && currentItem.getMonthValue <= group._2 && currentItem.getYear == 0
-      ) {
-        helper(nextItem.head, nextItem.tail, false, accumulator + 1)
-      } else helper(nextItem.head, nextItem.tail, true, accumulator)
+      if (nextItemAge.isEmpty || !isValid) accumulator
+      else if (isValid && isPartOfGroup(currentItemAge, hasYears, group))
+        helper(nextItemAge.head, nextItemAge.tail, false, hasYears, accumulator + 1)
+      else helper(nextItemAge.head, nextItemAge.tail, true, hasYears, accumulator)
     }
     val dates = orderList.map(order => getProductAgeWhenSold(order.orderDate, order.items))
-    dates.map(item => helper(item.head, item.tail, true, 0)).sum
+    dates.map(item => helper(item.head, item.tail, true, hasYears, 0)).sum
   }
+
+  def filterOrdersBetweenDates(
+    from: LocalDateTime,
+    to: LocalDateTime,
+    orders: LazyList[Order]
+  ): LazyList[Order] = {
+    if (from isAfter to) orders.filter(order => isBetween(from, to, order.orderDate))
+    else orders.filter(order => isBetween(to, from, order.orderDate))
+  }
+
 }
